@@ -56,6 +56,7 @@ declare global {
 }
 
 const KAKAO_MAP_APP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || "96fd957aa2ee8100637519ec69419b46";
+const HERO_LOGO_ASSET = "https://www.figma.com/api/mcp/asset/e11201e1-6df0-4ede-8b0f-6ec2ee5c9c44.png";
 const SUWON_HWASEONG = { lat: 37.281889, lng: 127.014028 };
 
 const parkingLots = [
@@ -114,7 +115,7 @@ export function HomeApp() {
 
   useEffect(() => {
     if (!mapReady || !window.kakao) return;
-    const container = document.querySelector<HTMLElement>("#kakao-map");
+    const container = document.querySelector<HTMLElement>("#route-kakao-map");
     if (!container) return;
 
     window.kakao.maps.load(() => {
@@ -262,12 +263,12 @@ export function HomeApp() {
           <a href="#parking">주차장</a>
           <a href="#route">경로 안내</a>
           <a href="#api">관광지</a>
-          <a href="#mypage">마이페이지</a>
+          <Link href="/mypage">마이페이지</Link>
         </div>
         <div className="nav-actions">
           {user ? (
             <>
-              <a className="nav-btn" href="#mypage">마이페이지</a>
+              <Link className="nav-btn" href="/mypage">마이페이지</Link>
               <button className="nav-btn" onClick={signOut}>로그아웃</button>
             </>
           ) : (
@@ -291,7 +292,7 @@ export function HomeApp() {
           <h1>수원<br />든든패스</h1>
           <p className="lead">주차장 선택부터 무장애 경로, 현장 시설 가이드, 관광정보 검색까지 한 번에 확인하는 수원화성 맞춤형 관광 웹사이트입니다.</p>
           <form className="hero-search" onSubmit={search}>
-            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} aria-label="검색어" />
+            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} aria-label="검색어" placeholder="수원 관광지, 주차장 검색..." />
             <button type="submit">검색</button>
           </form>
           <div className="hero-actions">
@@ -299,9 +300,13 @@ export function HomeApp() {
             <button className="secondary-action" onClick={createCustomCourse}>나만의 코스 만들기</button>
           </div>
         </div>
-        <div className="map-preview">
-          <div id="kakao-map" className="kakao-map" aria-label="수원화성 주변 카카오 지도" />
-          {!mapReady && <div className="map-fallback">카카오맵을 불러오는 중입니다.</div>}
+        <div className="brand-preview" aria-label="수원 든든패스 브랜드 이미지">
+          <img src={HERO_LOGO_ASSET} alt="수원 든든패스 로고" />
+          <div className="brand-preview-copy">
+            <span>수원 든든패스</span>
+            <strong>무장애 관광 동선을 한눈에</strong>
+            <p>경로 추천 지도는 아래 경로 안내 섹션에서 카카오맵으로 확인할 수 있습니다.</p>
+          </div>
         </div>
       </header>
 
@@ -329,17 +334,13 @@ export function HomeApp() {
       </section>
 
       <section id="route" className="split-app">
-        <div className="live-map">
-          <div className="castle-zone">수원화성 중심</div>
-          <div className="route-line" />
-          <button className="marker p1">P1<small>잔여 45</small></button>
-          <button className="marker p2">P2<small>잔여 8</small></button>
-          <button className="marker p3">P3<small>잔여 0</small></button>
-          <button className="marker p4">P4<small>대체</small></button>
+        <div className="live-map kakao-route-panel">
+          <div id="route-kakao-map" className="kakao-map" aria-label="선택 주차장과 수원화성 경로 카카오 지도" />
+          {!mapReady && <div className="map-fallback">카카오맵 경로 지도를 불러오는 중입니다.</div>}
         </div>
         <aside className="side-panel">
-          <h2>주변 주차장</h2>
-          <p className="muted">선택한 주차장 기준으로 수원화성까지 경로를 추천합니다.</p>
+          <h2>경로 추천 지도</h2>
+          <p className="muted">선택한 주차장 기준으로 수원화성까지 카카오맵 위에 경로를 표시합니다.</p>
           <div className="selected-route">
             <span className="badge soft">선택됨</span>
             <strong>{selectedParking.name}</strong>
@@ -392,7 +393,7 @@ export function HomeApp() {
       <section id="mypage">
         <div className="section-header">
           <div><p className="eyebrow">My page</p><h2>나의 주차장과 추천 코스</h2></div>
-          {!user && <Link className="outline-btn primary" href="/login">로그인하고 저장하기</Link>}
+          <Link className="outline-btn primary" href="/mypage">마이페이지 열기</Link>
         </div>
         <div className="mypage-grid">
           <article className="card mypage-card">
@@ -435,7 +436,7 @@ export function HomeApp() {
       </section>
 
       <div className="bottom-nav">
-        <a href="#home">홈</a><a href="#parking">주차장</a><a href="#route">경로 안내</a><a href="#api">관광지</a><a href="#report">제보하기</a><a href="#mypage">마이페이지</a>
+        <a href="#home">홈</a><a href="#parking">주차장</a><a href="#route">경로 안내</a><a href="#api">관광지</a><a href="#report">제보하기</a><Link href="/mypage">마이페이지</Link>
       </div>
       <footer><strong>수원 든든패스 | 수원시 관광 통합 정보 플랫폼</strong><span>© 2026 수원 든든패스</span></footer>
     </>
