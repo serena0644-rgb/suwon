@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import "./mypage.css";
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children }: { children: ReactNode }) {
   return children;
 }
