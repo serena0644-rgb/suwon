@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/env";
 
 export default function LoginPage() {
-  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const env = getSupabaseBrowserEnv();
   const [email, setEmail] = useState("");
@@ -41,8 +39,12 @@ export default function LoginPage() {
       : { data: null };
 
     setLoading(false);
-    router.push(profile?.role === "admin" ? "/admin" : "/");
-    router.refresh();
+
+    const destination = profile?.role === "admin" ? "/admin" : "/";
+
+    // Force a full navigation so Supabase auth cookies are available to the
+    // /admin route guard before the protected page loads.
+    window.location.assign(destination);
   }
 
   return (
