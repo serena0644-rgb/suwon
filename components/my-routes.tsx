@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Script from "next/script";
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 type Waypoint = {
   id: number;
@@ -303,10 +304,18 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
   if (!route) {
     return (
       <PageShell active="mypage">
-        <main className="my-page-shell"><section className="empty-route"><h1>경로를 찾을 수 없습니다</h1><Link className="primary-action" href="/mypage">내 경로 목록으로</Link></section></main>
+        <main className="my-page-shell">
+          <section className="empty-route">
+            <h1>경로를 찾을 수 없습니다</h1>
+            <p className="muted">저장 목록에서 삭제되었거나 존재하지 않는 경로입니다.</p>
+            <Link className="primary-action" href="/mypage">내 경로 목록으로</Link>
+          </section>
+        </main>
       </PageShell>
     );
   }
+
+  const selectedRoute: SavedRoute = route;
 
   function persist(nextRoutes: SavedRoute[], nextNotice: string) {
     setRoutes(nextRoutes);
@@ -316,23 +325,23 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
 
   function updateRoute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextRoutes = routes.map((item) => item.id === route.id ? { ...item, title: draftTitle.trim() || item.title, memo: draftMemo.trim() || item.memo, editedDate: new Date().toISOString().slice(0, 10).replaceAll("-", ".") } : item);
+    const nextRoutes = routes.map((item) => item.id === selectedRoute.id ? { ...item, title: draftTitle.trim() || item.title, memo: draftMemo.trim() || item.memo, editedDate: new Date().toISOString().slice(0, 10).replaceAll("-", ".") } : item);
     persist(nextRoutes, "경로 제목과 메모를 저장했습니다.");
     setEditing(false);
   }
 
   function deleteRoute() {
-    persist(routes.filter((item) => item.id !== route.id), `${route.title}를 삭제했습니다.`);
+    persist(routes.filter((item) => item.id !== selectedRoute.id), `${selectedRoute.title}를 삭제했습니다.`);
   }
 
   async function shareRoute() {
-    const url = `${window.location.origin}/mypage/routes/${route.id}`;
+    const url = `${window.location.origin}/mypage/routes/${selectedRoute.id}`;
     if (navigator.clipboard) await navigator.clipboard.writeText(url);
     setNotice("공유 링크를 클립보드에 복사했습니다.");
   }
 
   function startRoute() {
-    setNotice(`${route.title} 안내를 시작했습니다. ${route.waypoints[0]?.name ?? "출발지"}에서 출발하세요.`);
+    setNotice(`${selectedRoute.title} 안내를 시작했습니다. ${selectedRoute.waypoints[0]?.name ?? "출발지"}에서 출발하세요.`);
   }
 
   return (
@@ -342,9 +351,9 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
 
         <section className="route-detail-header">
           <div>
-            <span className="badge soft">{route.kind}</span>
-            <h1>{route.title}</h1>
-            <p>{route.savedDate} 저장 · 최근 수정 {route.editedDate} · {route.profile}</p>
+            <span className="badge soft">{selectedRoute.kind}</span>
+            <h1>{selectedRoute.title}</h1>
+            <p>{selectedRoute.savedDate} 저장 · 최근 수정 {selectedRoute.editedDate} · {selectedRoute.profile}</p>
           </div>
           <div className="detail-actions">
             <button className="primary-action" type="button" onClick={startRoute}>경로 안내 시작</button>
@@ -357,22 +366,22 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
         {notice && <p className="route-notice" role="status">{notice}</p>}
 
         <section className="detail-summary-card">
-          <SummaryTile label="총 거리" value={route.distance} />
-          <SummaryTile label="예상 소요" value={route.duration} />
-          <SummaryTile label="경유지" value={`${route.stops}곳`} />
-          <SummaryTile label="무장애 등급" value={route.grade} />
-          <SummaryTile label="연계 주차장" value={route.parking} />
+          <SummaryTile label="총 거리" value={selectedRoute.distance} />
+          <SummaryTile label="예상 소요" value={selectedRoute.duration} />
+          <SummaryTile label="경유지" value={`${selectedRoute.stops}곳`} />
+          <SummaryTile label="무장애 등급" value={selectedRoute.grade} />
+          <SummaryTile label="연계 주차장" value={selectedRoute.parking} />
         </section>
 
         <section className="detail-columns">
           <article className="map-card kakao-detail-card">
             <div className="card-title-row"><h2>카카오맵 경로</h2><span>무장애 경로 · 경유지 마커 표시</span></div>
-            <RouteKakaoMap route={route} />
+            <RouteKakaoMap route={selectedRoute} />
           </article>
 
           <article className="access-card">
             <h2>무장애 정보 요약</h2>
-            <strong>무장애 등급 {route.grade} · {route.profile}</strong>
+            <strong>무장애 등급 {selectedRoute.grade} · {selectedRoute.profile}</strong>
             <p>✅ 전 구간 경사 5% 이하 우선</p>
             <p>✅ 경사로 3곳 · 엘리베이터 2곳</p>
             <p>✅ 장애인 화장실 2곳 · 수유실 1곳</p>
@@ -382,8 +391,8 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
         </section>
 
         <section className="timeline-card">
-          <div className="card-title-row"><h2>경유지 상세 ({route.waypoints.length}곳)</h2><span>수정 버튼에서 제목과 메모를 바꿀 수 있습니다</span></div>
-          {route.waypoints.map((point) => (
+          <div className="card-title-row"><h2>경유지 상세 ({selectedRoute.waypoints.length}곳)</h2><span>수정 버튼에서 제목과 메모를 바꿀 수 있습니다</span></div>
+          {selectedRoute.waypoints.map((point) => (
             <article className="timeline-row" key={point.id}>
               <span className="timeline-num">{point.id}</span>
               <div>
@@ -399,13 +408,13 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
         <section className="extra-columns">
           <article className="parking-link-card">
             <h2>연계 주차장</h2>
-            <div className="parking-line"><span>P</span><div><strong>{route.parking}</strong><p>{route.parkingMeta}</p></div></div>
-            <span className="badge ok">{route.parkingStatus}</span>
+            <div className="parking-line"><span>P</span><div><strong>{selectedRoute.parking}</strong><p>{selectedRoute.parkingMeta}</p></div></div>
+            <span className="badge ok">{selectedRoute.parkingStatus}</span>
             <Link className="card-link" href="/#parking">주차장 상세 보기 →</Link>
           </article>
           <article className="memo-card">
             <h2>내 메모</h2>
-            <p>{route.memo}</p>
+            <p>{selectedRoute.memo}</p>
             <button className="card-link" type="button" onClick={() => setEditing(true)}>메모 수정 →</button>
           </article>
         </section>
