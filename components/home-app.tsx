@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import Script from "next/script";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/env";
@@ -25,11 +26,44 @@ type Report = {
   status?: string;
 };
 
+type ParkingLot = {
+  badge: string;
+  distance: string;
+  id: string;
+  lat: number;
+  lng: number;
+  name: string;
+  remain: number;
+  status: string;
+  tone: string;
+};
+
+declare global {
+  interface Window {
+    kakao?: {
+      maps: {
+        LatLng: new (lat: number, lng: number) => unknown;
+        Map: new (container: HTMLElement, options: { center: unknown; level: number }) => unknown;
+        Marker: new (options: { map: unknown; position: unknown; title?: string }) => unknown;
+        Polyline: new (options: { endArrow?: boolean; map: unknown; path: unknown[]; strokeColor: string; strokeOpacity: number; strokeStyle: string; strokeWeight: number }) => unknown;
+        event: {
+          addListener: (target: unknown, type: string, handler: () => void) => void;
+        };
+        load: (callback: () => void) => void;
+      };
+    };
+  }
+}
+
+const KAKAO_MAP_APP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || "96fd957aa2ee8100637519ec69419b46";
+const SUWON_HWASEONG = { lat: 37.281889, lng: 127.014028 };
+
 const parkingLots = [
-  { id: "p1", name: "수원화성 제1주차장", distance: "50m · 도보 1분", remain: 45, status: "여유", badge: "장애인 구역", tone: "free" },
-  { id: "p2", name: "행궁 광장 주차장", distance: "280m · 도보 4분", remain: 8, status: "혼잡", badge: "우회 추천", tone: "busy" },
-  { id: "p3", name: "장안문 공영주차장", distance: "450m · 도보 6분", remain: 0, status: "만차", badge: "인근 대체 안내", tone: "full" },
-];
+  { id: "p1", name: "수원화성 제1주차장", distance: "50m · 도보 1분", remain: 45, status: "여유", badge: "장애인 구역", tone: "free", lat: 37.282417, lng: 127.01441 },
+  { id: "p2", name: "행궁 광장 주차장", distance: "280m · 도보 4분", remain: 8, status: "혼잡", badge: "우회 추천", tone: "busy", lat: 37.281192, lng: 127.012121 },
+  { id: "p3", name: "장안문 공영주차장", distance: "450m · 도보 6분", remain: 0, status: "만차", badge: "인근 대체 안내", tone: "full", lat: 37.288108, lng: 127.014248 },
+  { id: "p4", name: "화홍문 공영주차장", distance: "620m · 도보 9분", remain: 21, status: "보통", badge: "대체 주차장", tone: "free", lat: 37.287215, lng: 127.01826 },
+] satisfies ParkingLot[];
 
 const facilities = [
   { title: "경사로 진입점", desc: "행궁광장 서측 진입로", tag: "사진 확인됨" },
@@ -47,8 +81,8 @@ function statusClass(tone: string) {
 export function HomeApp() {
   const supabase = useMemo(() => createClient(), []);
   const env = getSupabaseBrowserEnv();
+  const mapRef = useRef<unknown>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [userType, setUserType] = useState("휠체어");
   const [keyword, setKeyword] = useState("수원");
   const [places, setPlaces] = useState<TourItem[]>([]);
   const [reports, setReports] = useState<Report[]>([
@@ -58,6 +92,9 @@ export function HomeApp() {
   const [reportText, setReportText] = useState("");
   const [status, setStatus] = useState("현재 위치: 수원화성 팔달구 일대 | API 연결 확인 전");
   const [message, setMessage] = useState("");
+  const [mapReady, setMapReady] = useState(false);
+  const [selectedParking, setSelectedParking] = useState<ParkingLot>(parkingLots[0]);
+  const [course, setCourse] = useState<string[]>(["수원화성 제1주차장", "화성행궁", "행궁광장", "장안문"]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -74,6 +111,47 @@ export function HomeApp() {
     void loadApi("수원");
     void loadReports();
   }, []);
+
+  useEffect(() => {
+    if (!mapReady || !window.kakao) return;
+    const container = document.querySelector<HTMLElement>("#kakao-map");
+    if (!container) return;
+
+    window.kakao.maps.load(() => {
+      if (!window.kakao) return;
+      const center = new window.kakao.maps.LatLng(SUWON_HWASEONG.lat, SUWON_HWASEONG.lng);
+      const map = new window.kakao.maps.Map(container, { center, level: 4 });
+      mapRef.current = map;
+
+      parkingLots.forEach((lot) => {
+        const marker = new window.kakao!.maps.Marker({
+          map,
+          position: new window.kakao!.maps.LatLng(lot.lat, lot.lng),
+          title: lot.name,
+        });
+        window.kakao!.maps.event.addListener(marker, "click", () => selectParking(lot));
+      });
+
+      new window.kakao!.maps.Marker({
+        map,
+        position: center,
+        title: "수원화성",
+      });
+
+      new window.kakao!.maps.Polyline({
+        endArrow: true,
+        map,
+        path: [
+          new window.kakao!.maps.LatLng(selectedParking.lat, selectedParking.lng),
+          center,
+        ],
+        strokeColor: "#1a61d1",
+        strokeOpacity: 0.85,
+        strokeStyle: "solid",
+        strokeWeight: 5,
+      });
+    });
+  }, [mapReady, selectedParking]);
 
   async function loadReports() {
     if (!supabase) return;
@@ -148,8 +226,35 @@ export function HomeApp() {
     document.querySelector("#api")?.scrollIntoView({ behavior: "smooth" });
   }
 
+  function selectParking(lot: ParkingLot) {
+    setSelectedParking(lot);
+    setStatus(`${lot.name} 선택 | ${lot.distance} | 잔여 ${lot.remain}면`);
+  }
+
+  function recommendRoute() {
+    const recommended = parkingLots.find((lot) => lot.remain > 0) || parkingLots[0];
+    selectParking(recommended);
+    setCourse([recommended.name, "화성행궁", "행궁광장", "장안문"]);
+    document.querySelector("#route")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function createCustomCourse() {
+    const nextPlaces = places.slice(0, 2).map((place) => place.title);
+    const nextCourse = [selectedParking.name, ...(nextPlaces.length ? nextPlaces : ["화성행궁", "행궁광장"]), "장안문"];
+    setCourse(nextCourse);
+    setMessage("선택한 주차장과 관광지 정보로 나만의 코스를 만들었습니다.");
+    document.querySelector("#mypage")?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
     <>
+      <Script
+        id="kakao-map-sdk"
+        src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_APP_KEY}&autoload=false`}
+        strategy="afterInteractive"
+        onLoad={() => setMapReady(true)}
+      />
+
       <nav className="navbar">
         <Link href="/" className="brand">수원 든든패스</Link>
         <div className="nav-links">
@@ -157,10 +262,14 @@ export function HomeApp() {
           <a href="#parking">주차장</a>
           <a href="#route">경로 안내</a>
           <a href="#api">관광지</a>
+          <a href="#mypage">마이페이지</a>
         </div>
         <div className="nav-actions">
           {user ? (
-            <button className="nav-btn" onClick={signOut}>로그아웃</button>
+            <>
+              <a className="nav-btn" href="#mypage">마이페이지</a>
+              <button className="nav-btn" onClick={signOut}>로그아웃</button>
+            </>
           ) : (
             <>
               <Link className="nav-btn" href="/login">로그인</Link>
@@ -186,25 +295,13 @@ export function HomeApp() {
             <button type="submit">검색</button>
           </form>
           <div className="hero-actions">
-            <button className="primary-action" onClick={() => document.querySelector("#route")?.scrollIntoView({ behavior: "smooth" })}>경로 추천 시작</button>
-            <button className="secondary-action" onClick={() => setMessage("즐겨찾기한 관광지를 기준으로 코스를 만들 수 있습니다.")}>나만의 코스 만들기</button>
-          </div>
-          <div className="user-panel">
-            <strong>나의 이동 유형을 선택해주세요.</strong>
-            <div className="user-types">
-              {["휠체어", "유모차", "시각장애", "고령자"].map((type) => (
-                <button key={type} className={`user-type ${type === userType ? "is-active" : ""}`} onClick={() => setUserType(type)}>
-                  <span>{type.slice(0, 1)}</span><span>{type}</span>
-                </button>
-              ))}
-            </div>
+            <button className="primary-action" onClick={recommendRoute}>경로 추천 시작</button>
+            <button className="secondary-action" onClick={createCustomCourse}>나만의 코스 만들기</button>
           </div>
         </div>
         <div className="map-preview">
-          <div className="pin gate">장안문</div>
-          <div className="pin palace">화성행궁</div>
-          <div className="pin square">행궁광장</div>
-          <div className="pin parking">P</div>
+          <div id="kakao-map" className="kakao-map" aria-label="수원화성 주변 카카오 지도" />
+          {!mapReady && <div className="map-fallback">카카오맵을 불러오는 중입니다.</div>}
         </div>
       </header>
 
@@ -224,6 +321,7 @@ export function HomeApp() {
                   <span className={`badge ${statusClass(lot.tone)}`}>{lot.status}</span>
                   <span className="badge">{lot.badge}</span>
                 </div>
+                <button className="card-link" type="button" onClick={() => selectParking(lot)}>이 주차장 선택</button>
               </div>
             </article>
           ))}
@@ -241,13 +339,18 @@ export function HomeApp() {
         </div>
         <aside className="side-panel">
           <h2>주변 주차장</h2>
-          <p className="muted">{userType} 기준으로 경로를 추천합니다.</p>
+          <p className="muted">선택한 주차장 기준으로 수원화성까지 경로를 추천합니다.</p>
+          <div className="selected-route">
+            <span className="badge soft">선택됨</span>
+            <strong>{selectedParking.name}</strong>
+            <p>{selectedParking.distance} · 잔여 {selectedParking.remain}면</p>
+          </div>
           <div className="side-list">
             {parkingLots.map((lot) => (
               <article className="side-item" key={lot.id}>
                 <div className="round-icon">P</div>
                 <div><strong>{lot.name}</strong><p className="muted">{lot.distance}</p></div>
-                <button className="small-btn primary" disabled={lot.remain === 0}>선택</button>
+                <button className="small-btn primary" disabled={lot.remain === 0} onClick={() => selectParking(lot)}>선택</button>
               </article>
             ))}
           </div>
@@ -286,6 +389,33 @@ export function HomeApp() {
         </div>
       </section>
 
+      <section id="mypage">
+        <div className="section-header">
+          <div><p className="eyebrow">My page</p><h2>나의 주차장과 추천 코스</h2></div>
+          {!user && <Link className="outline-btn primary" href="/login">로그인하고 저장하기</Link>}
+        </div>
+        <div className="mypage-grid">
+          <article className="card mypage-card">
+            <span className="badge soft">선택 주차장</span>
+            <h3>{selectedParking.name}</h3>
+            <p className="muted">{selectedParking.distance} · 잔여 {selectedParking.remain}면 · {selectedParking.badge}</p>
+            <button className="small-btn primary" type="button" onClick={recommendRoute}>경로 다시 추천</button>
+          </article>
+          <article className="card mypage-card">
+            <span className="badge soft">나만의 코스</span>
+            <ol className="course-list">
+              {course.map((item) => <li key={item}>{item}</li>)}
+            </ol>
+            <button className="small-btn" type="button" onClick={createCustomCourse}>현재 정보로 코스 갱신</button>
+          </article>
+          <article className="card mypage-card">
+            <span className="badge soft">계정 상태</span>
+            <h3>{user ? "로그인됨" : "비회원 모드"}</h3>
+            <p className="muted">{user ? user.email : "로그인하면 제보와 코스 저장 기능을 더 안정적으로 이용할 수 있습니다."}</p>
+          </article>
+        </div>
+      </section>
+
       <section id="report">
         <div className="report-grid">
           <div>
@@ -305,7 +435,7 @@ export function HomeApp() {
       </section>
 
       <div className="bottom-nav">
-        <a href="#home">홈</a><a href="#parking">주차장</a><a href="#route">경로 안내</a><a href="#api">관광지</a><a href="#report">제보하기</a>
+        <a href="#home">홈</a><a href="#parking">주차장</a><a href="#route">경로 안내</a><a href="#api">관광지</a><a href="#report">제보하기</a><a href="#mypage">마이페이지</a>
       </div>
       <footer><strong>수원 든든패스 | 수원시 관광 통합 정보 플랫폼</strong><span>© 2026 수원 든든패스</span></footer>
     </>
