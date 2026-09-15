@@ -1,0 +1,15 @@
+.openai
+db
+drizzle
+examples
+node_modules
+outputs
+public
+tests
+work
+worker
+*.bat
+*.cmd
+*.log
+.env
+.env.local
