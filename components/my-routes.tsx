@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import Script from "next/script";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 type Waypoint = {
   id: number;
@@ -10,6 +11,8 @@ type Waypoint = {
   meta: string;
   tags: string[];
   next: string;
+  lat: number;
+  lng: number;
 };
 
 type SavedRoute = {
@@ -31,6 +34,17 @@ type SavedRoute = {
   waypoints: Waypoint[];
 };
 
+type KakaoMapApi = {
+  maps: {
+    LatLng: new (lat: number, lng: number) => unknown;
+    Map: new (container: HTMLElement, options: { center: unknown; level: number }) => unknown;
+    Marker: new (options: { map: unknown; position: unknown; title?: string }) => unknown;
+    Polyline: new (options: { endArrow?: boolean; map: unknown; path: unknown[]; strokeColor: string; strokeOpacity: number; strokeStyle: string; strokeWeight: number }) => unknown;
+    load: (callback: () => void) => void;
+  };
+};
+
+const KAKAO_MAP_APP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || "96fd957aa2ee8100637519ec69419b46";
 const STORAGE_KEY = "suwon-ddp-routes";
 
 const defaultRoutes: SavedRoute[] = [
@@ -51,10 +65,10 @@ const defaultRoutes: SavedRoute[] = [
     tags: ["계단 우회로", "평지 우선", "화장실 2곳"],
     memo: "오후 2시 이후에는 공방거리 그늘 구간을 이용. 벽화마을 초입 경사가 있어 동행자 1명 필요.",
     waypoints: [
-      { id: 1, name: "화성행궁", role: "출발", meta: "09:30 출발 예정 · 매표소 앞 집결", tags: ["경사로 진입", "장애인 화장실", "휠체어 대여"], next: "다음 구간 650m · 14분" },
-      { id: 2, name: "행궁광장", role: "경유", meta: "휴식 10분 · 광장 그늘 쉼터", tags: ["평지", "그늘 쉼터", "수유실"], next: "다음 구간 700m · 15분" },
-      { id: 3, name: "공방거리", role: "경유", meta: "체험 30분 · 보도 폭 1.5m 이상", tags: ["계단 우회로", "턱 없음"], next: "다음 구간 1.1km · 23분" },
-      { id: 4, name: "행궁동 벽화마을", role: "도착", meta: "11:20 도착 예정 · 일부 구간 경사 8%", tags: ["사진 확인됨", "주의 구간"], next: "도착" },
+      { id: 1, name: "화성행궁", role: "출발", meta: "09:30 출발 예정 · 매표소 앞 집결", tags: ["경사로 진입", "장애인 화장실", "휠체어 대여"], next: "다음 구간 650m · 14분", lat: 37.281889, lng: 127.014028 },
+      { id: 2, name: "행궁광장", role: "경유", meta: "휴식 10분 · 광장 그늘 쉼터", tags: ["평지", "그늘 쉼터", "수유실"], next: "다음 구간 700m · 15분", lat: 37.282512, lng: 127.013211 },
+      { id: 3, name: "공방거리", role: "경유", meta: "체험 30분 · 보도 폭 1.5m 이상", tags: ["계단 우회로", "턱 없음"], next: "다음 구간 1.1km · 23분", lat: 37.283522, lng: 127.015403 },
+      { id: 4, name: "행궁동 벽화마을", role: "도착", meta: "11:20 도착 예정 · 일부 구간 경사 8%", tags: ["사진 확인됨", "주의 구간"], next: "도착", lat: 37.286218, lng: 127.014912 },
     ],
   },
   {
@@ -74,9 +88,9 @@ const defaultRoutes: SavedRoute[] = [
     tags: ["짧은 동선", "휴식 3곳", "경사 낮음"],
     memo: "오전 시간대 추천. 장안문 북측 포토존 주변은 주말에 혼잡합니다.",
     waypoints: [
-      { id: 1, name: "장안문", role: "출발", meta: "10:00 출발 예정 · 북측 안내판 앞", tags: ["평지", "벤치"], next: "다음 구간 500m · 11분" },
-      { id: 2, name: "화홍문", role: "경유", meta: "휴식 15분 · 수변 쉼터", tags: ["그늘 쉼터", "사진 명소"], next: "다음 구간 800m · 18분" },
-      { id: 3, name: "장안공원", role: "도착", meta: "10:45 도착 예정", tags: ["화장실", "대중교통 연계"], next: "도착" },
+      { id: 1, name: "장안문", role: "출발", meta: "10:00 출발 예정 · 북측 안내판 앞", tags: ["평지", "벤치"], next: "다음 구간 500m · 11분", lat: 37.287786, lng: 127.01431 },
+      { id: 2, name: "화홍문", role: "경유", meta: "휴식 15분 · 수변 쉼터", tags: ["그늘 쉼터", "사진 명소"], next: "다음 구간 800m · 18분", lat: 37.287033, lng: 127.017846 },
+      { id: 3, name: "장안공원", role: "도착", meta: "10:45 도착 예정", tags: ["화장실", "대중교통 연계"], next: "도착", lat: 37.28931, lng: 127.012981 },
     ],
   },
   {
@@ -96,9 +110,9 @@ const defaultRoutes: SavedRoute[] = [
     tags: ["수유실", "그늘 쉼터", "짧은 거리"],
     memo: "점심 이후 광장이 붐비면 관광안내소 뒤편 보행로를 이용하세요.",
     waypoints: [
-      { id: 1, name: "행궁광장", role: "출발", meta: "13:00 출발 예정 · 서측 진입부", tags: ["수유실", "평지"], next: "다음 구간 350m · 8분" },
-      { id: 2, name: "관광안내소", role: "경유", meta: "기저귀 교환대 확인", tags: ["수유실", "화장실"], next: "다음 구간 520m · 13분" },
-      { id: 3, name: "화성행궁", role: "도착", meta: "13:30 도착 예정", tags: ["경사로", "그늘"], next: "도착" },
+      { id: 1, name: "행궁광장", role: "출발", meta: "13:00 출발 예정 · 서측 진입부", tags: ["수유실", "평지"], next: "다음 구간 350m · 8분", lat: 37.282512, lng: 127.013211 },
+      { id: 2, name: "관광안내소", role: "경유", meta: "기저귀 교환대 확인", tags: ["수유실", "화장실"], next: "다음 구간 520m · 13분", lat: 37.281643, lng: 127.014001 },
+      { id: 3, name: "화성행궁", role: "도착", meta: "13:30 도착 예정", tags: ["경사로", "그늘"], next: "도착", lat: 37.281889, lng: 127.014028 },
     ],
   },
   {
@@ -118,10 +132,10 @@ const defaultRoutes: SavedRoute[] = [
     tags: ["음성 안내", "횡단 주의", "동행 추천"],
     memo: "팔달문 시장 입구는 유도블록 단절 구간이 있어 우회 동선을 유지하세요.",
     waypoints: [
-      { id: 1, name: "팔달문", role: "출발", meta: "14:00 출발 예정 · 동측 횡단보도", tags: ["음향신호기", "횡단 주의"], next: "다음 구간 420m · 10분" },
-      { id: 2, name: "시장 입구", role: "경유", meta: "혼잡 구간 · 동행 권장", tags: ["유도블록 단절", "주의"], next: "다음 구간 600m · 16분" },
-      { id: 3, name: "남문로", role: "경유", meta: "보행 폭 1.4m", tags: ["평지", "차도 인접"], next: "다음 구간 980m · 21분" },
-      { id: 4, name: "행궁광장", role: "도착", meta: "14:50 도착 예정", tags: ["넓은 광장", "휴식"], next: "도착" },
+      { id: 1, name: "팔달문", role: "출발", meta: "14:00 출발 예정 · 동측 횡단보도", tags: ["음향신호기", "횡단 주의"], next: "다음 구간 420m · 10분", lat: 37.277764, lng: 127.017173 },
+      { id: 2, name: "시장 입구", role: "경유", meta: "혼잡 구간 · 동행 권장", tags: ["유도블록 단절", "주의"], next: "다음 구간 600m · 16분", lat: 37.278646, lng: 127.016295 },
+      { id: 3, name: "남문로", role: "경유", meta: "보행 폭 1.4m", tags: ["평지", "차도 인접"], next: "다음 구간 980m · 21분", lat: 37.280526, lng: 127.016743 },
+      { id: 4, name: "행궁광장", role: "도착", meta: "14:50 도착 예정", tags: ["넓은 광장", "휴식"], next: "도착", lat: 37.282512, lng: 127.013211 },
     ],
   },
 ];
@@ -201,7 +215,7 @@ export function MyRoutesPage() {
           <div>
             <p className="eyebrow">My page</p>
             <h1>마이페이지</h1>
-            <p className="lead">직접 만든 경로와 저장한 추천 경로를 관리하고, 현장에서 바로 안내를 시작할 수 있습니다.</p>
+            <p className="lead">직접 만든 경로와 저장한 추천 경로를 관리하고, 상세 화면에서 카카오맵 경로를 확인할 수 있습니다.</p>
           </div>
           <div className="profile-card">
             <span className="profile-avatar">S</span>
@@ -351,14 +365,9 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
         </section>
 
         <section className="detail-columns">
-          <article className="map-card">
-            <div className="card-title-row"><h2>경로 미리보기</h2><span>무장애 경로 · 계단 구간 자동 회피</span></div>
-            <div className="route-map-preview" aria-label="약식 경로 지도">
-              <span className="map-caption">수원화성 일대 (약식 지도)</span>
-              <i className="road horizontal" /><i className="road vertical" /><i className="zone" />
-              <i className="route-seg seg-1" /><i className="route-seg seg-2" /><i className="route-seg seg-3" /><i className="route-seg seg-4" /><i className="route-seg seg-5" />
-              {route.waypoints.slice(0, 4).map((point, index) => <span className={`map-stop stop-${index + 1}`} key={point.id}><b>{index + 1}</b><em>{point.name}</em></span>)}
-            </div>
+          <article className="map-card kakao-detail-card">
+            <div className="card-title-row"><h2>카카오맵 경로</h2><span>무장애 경로 · 경유지 마커 표시</span></div>
+            <RouteKakaoMap route={route} />
           </article>
 
           <article className="access-card">
@@ -419,7 +428,57 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
   );
 }
 
-function PageShell({ active, children }: { active: string; children: React.ReactNode }) {
+function RouteKakaoMap({ route }: { route: SavedRoute }) {
+  const [ready, setReady] = useState(false);
+  const mapId = `route-detail-map-${route.id}`;
+
+  useEffect(() => {
+    if (!ready) return;
+    const kakao = (window as unknown as { kakao?: KakaoMapApi }).kakao;
+    const container = document.getElementById(mapId);
+    if (!kakao || !container) return;
+
+    kakao.maps.load(() => {
+      const centerPoint = route.waypoints[Math.floor(route.waypoints.length / 2)] ?? route.waypoints[0];
+      const center = new kakao.maps.LatLng(centerPoint.lat, centerPoint.lng);
+      const map = new kakao.maps.Map(container, { center, level: 4 });
+      const path = route.waypoints.map((point) => new kakao.maps.LatLng(point.lat, point.lng));
+
+      route.waypoints.forEach((point) => {
+        new kakao.maps.Marker({
+          map,
+          position: new kakao.maps.LatLng(point.lat, point.lng),
+          title: `${point.id}. ${point.name}`,
+        });
+      });
+
+      new kakao.maps.Polyline({
+        endArrow: true,
+        map,
+        path,
+        strokeColor: "#1a61d1",
+        strokeOpacity: 0.9,
+        strokeStyle: "solid",
+        strokeWeight: 5,
+      });
+    });
+  }, [mapId, ready, route]);
+
+  return (
+    <div className="route-kakao-shell">
+      <Script
+        id="kakao-map-sdk-mypage"
+        src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_APP_KEY}&autoload=false`}
+        strategy="afterInteractive"
+        onLoad={() => setReady(true)}
+      />
+      <div id={mapId} className="route-kakao-map" aria-label={`${route.title} 카카오맵 경로`} />
+      {!ready && <div className="map-fallback">카카오맵 경로를 불러오는 중입니다.</div>}
+    </div>
+  );
+}
+
+function PageShell({ active, children }: { active: string; children: ReactNode }) {
   return (
     <>
       <nav className="navbar">
