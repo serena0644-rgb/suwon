@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   TOUR_BASE_URL,
+  WITH_BASE_URL,
   buildUrl,
   getItems,
   normalize,
@@ -11,6 +12,7 @@ export async function GET(request: Request) {
   const mapX = params.get("mapX") || "";
   const mapY = params.get("mapY") || "";
   const radius = params.get("radius") || "2000";
+  const withAccessibility = params.get("source") === "with";
   if (
     !mapX ||
     !mapY ||
@@ -26,11 +28,11 @@ export async function GET(request: Request) {
       { ok: false, items: [], message: "유효한 위치와 반경이 필요합니다." },
       { status: 400 },
     );
-  const url = buildUrl(TOUR_BASE_URL, "locationBasedList2", {
-    mapX,
-    mapY,
-    radius,
-  });
+  const url = buildUrl(
+    withAccessibility ? WITH_BASE_URL : TOUR_BASE_URL,
+    "locationBasedList2",
+    { mapX, mapY, radius },
+  );
   if (!url)
     return NextResponse.json(
       { ok: false, items: [], message: "관광정보 연결이 준비되지 않았습니다." },
@@ -40,7 +42,7 @@ export async function GET(request: Request) {
     const data = await requestApi(url);
     return NextResponse.json({
       ok: true,
-      source: "tourapi",
+      source: withAccessibility ? "withapi" : "tourapi",
       items: getItems(data)
         .map(normalize)
         .filter((item) => item.id && item.title),
