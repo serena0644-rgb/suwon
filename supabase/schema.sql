@@ -30,7 +30,7 @@ security definer
 set search_path = public
 as $$
 begin
-    insert into public.profiles (id, username, email, display_name, user_type)
+  insert into public.profiles (id, username, email, display_name, user_type)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'username', ''),
