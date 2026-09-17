@@ -11,3 +11,11 @@ export function getSupabaseBrowserEnv() {
     url,
   };
 }
+
+/**
+ * 카카오 지도 JS SDK 앱키. 클라이언트에서 SDK 를 직접 로드해야 하므로 NEXT_PUBLIC_ 로 노출됩니다.
+ * (카카오 개발자 콘솔에서 허용 도메인을 등록해 사용 범위를 제한하세요.)
+ */
+export function getKakaoMapAppKey() {
+  return process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || "";
+}

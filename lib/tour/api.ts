@@ -13,13 +13,15 @@ export type TourItem = {
   title: string;
 };
 
-export function getItems(data: any) {
-  const item = data?.response?.body?.items?.item;
+type TourApiRecord = Record<string, string | undefined>;
+
+export function getItems(data: unknown): TourApiRecord[] {
+  const item = (data as { response?: { body?: { items?: { item?: unknown } } } })?.response?.body?.items?.item;
   if (!item) return [];
-  return Array.isArray(item) ? item : [item];
+  return (Array.isArray(item) ? item : [item]) as TourApiRecord[];
 }
 
-export function normalize(item: any): TourItem {
+export function normalize(item: TourApiRecord): TourItem {
   return {
     id: item.contentid || "",
     title: item.title || "이름 없음",

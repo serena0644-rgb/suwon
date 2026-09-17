@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Script from "next/script";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/env";
+import { RoutePlanner } from "@/components/route-planner";
+import type { MapPlace } from "@/components/map/route-map";
+import type { PickRequest } from "@/components/route-planner";
 
 type TourItem = {
   address: string;
@@ -38,24 +40,6 @@ type ParkingLot = {
   tone: string;
 };
 
-declare global {
-  interface Window {
-    kakao?: {
-      maps: {
-        LatLng: new (lat: number, lng: number) => unknown;
-        Map: new (container: HTMLElement, options: { center: unknown; level: number }) => unknown;
-        Marker: new (options: { map: unknown; position: unknown; title?: string }) => unknown;
-        Polyline: new (options: { endArrow?: boolean; map: unknown; path: unknown[]; strokeColor: string; strokeOpacity: number; strokeStyle: string; strokeWeight: number }) => unknown;
-        event: {
-          addListener: (target: unknown, type: string, handler: () => void) => void;
-        };
-        load: (callback: () => void) => void;
-      };
-    };
-  }
-}
-
-const KAKAO_MAP_APP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY || "96fd957aa2ee8100637519ec69419b46";
 const HERO_LOGO_ASSET = "https://www.figma.com/api/mcp/asset/e11201e1-6df0-4ede-8b0f-6ec2ee5c9c44.png";
 const SUWON_HWASEONG = { lat: 37.281889, lng: 127.014028 };
 
@@ -82,7 +66,6 @@ function statusClass(tone: string) {
 export function HomeApp() {
   const supabase = useMemo(() => createClient(), []);
   const env = getSupabaseBrowserEnv();
-  const mapRef = useRef<unknown>(null);
   const [user, setUser] = useState<User | null>(null);
   const [keyword, setKeyword] = useState("수원");
   const [places, setPlaces] = useState<TourItem[]>([]);
@@ -93,9 +76,58 @@ export function HomeApp() {
   const [reportText, setReportText] = useState("");
   const [status, setStatus] = useState("현재 위치: 수원화성 팔달구 일대 | API 연결 확인 전");
   const [message, setMessage] = useState("");
-  const [mapReady, setMapReady] = useState(false);
   const [selectedParking, setSelectedParking] = useState<ParkingLot>(parkingLots[0]);
   const [course, setCourse] = useState<string[]>(["수원화성 제1주차장", "화성행궁", "행궁광장", "장안문"]);
+  const [pickRequest, setPickRequest] = useState<PickRequest | null>(null);
+
+  // 주차장과 (좌표가 있는) 관광지를 지도에서 바로 고를 수 있는 후보로 넘깁니다.
+  const mapCandidates = useMemo<MapPlace[]>(() => {
+    const lots: MapPlace[] = parkingLots.map((lot) => ({
+      id: `parking-${lot.id}`,
+      kind: "parking",
+      lat: lot.lat,
+      lng: lot.lng,
+      name: lot.name,
+      subtitle: `${lot.distance} · 잔여 ${lot.remain}면`,
+    }));
+
+    const tourPlaces: MapPlace[] = places
+      .map((place): MapPlace | null => {
+        const lat = Number(place.mapY);
+        const lng = Number(place.mapX);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
+        return {
+          id: `tour-${place.sourceLabel}-${place.id}`,
+          kind: "tour",
+          lat,
+          lng,
+          name: place.title,
+          subtitle: place.address,
+        };
+      })
+      .filter((place): place is MapPlace => place !== null);
+
+    return [...lots, ...tourPlaces];
+  }, [places]);
+
+  const initialStops = useMemo<MapPlace[]>(
+    () => [
+      {
+        id: `parking-${parkingLots[0].id}`,
+        kind: "parking",
+        lat: parkingLots[0].lat,
+        lng: parkingLots[0].lng,
+        name: parkingLots[0].name,
+        subtitle: parkingLots[0].distance,
+      },
+      { id: "hwaseong-haenggung", kind: "tour", lat: SUWON_HWASEONG.lat, lng: SUWON_HWASEONG.lng, name: "화성행궁" },
+    ],
+    [],
+  );
+
+  function pickPlace(place: MapPlace) {
+    setPickRequest({ place, token: Date.now() });
+  }
 
   useEffect(() => {
     if (!supabase) return;
@@ -112,47 +144,6 @@ export function HomeApp() {
     void loadApi("수원");
     void loadReports();
   }, []);
-
-  useEffect(() => {
-    if (!mapReady || !window.kakao) return;
-    const container = document.querySelector<HTMLElement>("#route-kakao-map");
-    if (!container) return;
-
-    window.kakao.maps.load(() => {
-      if (!window.kakao) return;
-      const center = new window.kakao.maps.LatLng(SUWON_HWASEONG.lat, SUWON_HWASEONG.lng);
-      const map = new window.kakao.maps.Map(container, { center, level: 4 });
-      mapRef.current = map;
-
-      parkingLots.forEach((lot) => {
-        const marker = new window.kakao!.maps.Marker({
-          map,
-          position: new window.kakao!.maps.LatLng(lot.lat, lot.lng),
-          title: lot.name,
-        });
-        window.kakao!.maps.event.addListener(marker, "click", () => selectParking(lot));
-      });
-
-      new window.kakao!.maps.Marker({
-        map,
-        position: center,
-        title: "수원화성",
-      });
-
-      new window.kakao!.maps.Polyline({
-        endArrow: true,
-        map,
-        path: [
-          new window.kakao!.maps.LatLng(selectedParking.lat, selectedParking.lng),
-          center,
-        ],
-        strokeColor: "#1a61d1",
-        strokeOpacity: 0.85,
-        strokeStyle: "solid",
-        strokeWeight: 5,
-      });
-    });
-  }, [mapReady, selectedParking]);
 
   async function loadReports() {
     if (!supabase) return;
@@ -230,6 +221,14 @@ export function HomeApp() {
   function selectParking(lot: ParkingLot) {
     setSelectedParking(lot);
     setStatus(`${lot.name} 선택 | ${lot.distance} | 잔여 ${lot.remain}면`);
+    pickPlace({
+      id: `parking-${lot.id}`,
+      kind: "parking",
+      lat: lot.lat,
+      lng: lot.lng,
+      name: lot.name,
+      subtitle: `${lot.distance} · 잔여 ${lot.remain}면`,
+    });
   }
 
   function recommendRoute() {
@@ -243,19 +242,17 @@ export function HomeApp() {
     const nextPlaces = places.slice(0, 2).map((place) => place.title);
     const nextCourse = [selectedParking.name, ...(nextPlaces.length ? nextPlaces : ["화성행궁", "행궁광장"]), "장안문"];
     setCourse(nextCourse);
-    setMessage("선택한 주차장과 관광지 정보로 나만의 코스를 만들었습니다.");
-    document.querySelector("#mypage")?.scrollIntoView({ behavior: "smooth" });
+    // 좌표를 가진 관광지는 경로 만들기 목록에도 바로 담아 줍니다.
+    mapCandidates
+      .filter((candidate) => candidate.kind === "tour")
+      .slice(0, 2)
+      .forEach(pickPlace);
+    setMessage("선택한 주차장과 관광지를 경로 만들기 목록에 담았습니다. 순서를 조정한 뒤 안내를 시작해 보세요.");
+    document.querySelector("#route")?.scrollIntoView({ behavior: "smooth" });
   }
 
   return (
     <>
-      <Script
-        id="kakao-map-sdk"
-        src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_APP_KEY}&autoload=false`}
-        strategy="afterInteractive"
-        onLoad={() => setMapReady(true)}
-      />
-
       <nav className="navbar">
         <Link href="/" className="brand">수원 든든패스</Link>
         <div className="nav-links">
@@ -328,30 +325,30 @@ export function HomeApp() {
         </div>
       </section>
 
-      <section id="route" className="split-app">
-        <div className="live-map kakao-route-panel">
-          <div id="route-kakao-map" className="kakao-map" aria-label="선택 주차장과 수원화성 경로 카카오 지도" />
-          {!mapReady && <div className="map-fallback">카카오맵 경로 지도를 불러오는 중입니다.</div>}
-        </div>
-        <aside className="side-panel">
-          <h2>경로 추천 지도</h2>
-          <p className="muted">선택한 주차장 기준으로 수원화성까지 카카오맵 위에 경로를 표시합니다.</p>
-          <div className="selected-route">
-            <span className="badge soft">선택됨</span>
-            <strong>{selectedParking.name}</strong>
-            <p>{selectedParking.distance} · 잔여 {selectedParking.remain}면</p>
+      <section id="route" className="route-section">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Walk route</p>
+            <h2>지도에서 직접 고르는 무장애 보행 경로</h2>
+            <p className="muted">
+              방문할 곳을 지도에서 고르면 실제 보행 가능한 길을 따라 경로를 그리고, 총 이동거리가 가장 짧은 방문 순서를 계산합니다.
+            </p>
           </div>
+        </div>
+        <RoutePlanner candidates={mapCandidates} initialStops={initialStops} pickRequest={pickRequest} />
+        <div className="route-parking-strip">
+          <h3>주차장에서 출발하기</h3>
           <div className="side-list">
             {parkingLots.map((lot) => (
               <article className="side-item" key={lot.id}>
                 <div className="round-icon">P</div>
                 <div><strong>{lot.name}</strong><p className="muted">{lot.distance}</p></div>
-                <button className="small-btn primary" disabled={lot.remain === 0} onClick={() => selectParking(lot)}>선택</button>
+                <button className="small-btn primary" disabled={lot.remain === 0} onClick={() => selectParking(lot)}>경로에 담기</button>
               </article>
             ))}
           </div>
           <button className="primary-action" style={{ marginTop: 16 }} onClick={loadLocation}>내 위치 기준 관광정보</button>
-        </aside>
+        </div>
       </section>
       <div className="statusbar">{status}</div>
 
