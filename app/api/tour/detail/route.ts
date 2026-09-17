@@ -1,53 +1,70 @@
 import { NextResponse } from "next/server";
-import { TOUR_BASE_URL, WITH_BASE_URL, buildUrl, getItems, requestApi, stripHtml } from "@/lib/tour/api";
-
+import {
+  TOUR_BASE_URL,
+  WITH_BASE_URL,
+  buildUrl,
+  getItems,
+  requestApi,
+  stripHtml,
+} from "@/lib/tour/api";
 export async function GET(request: Request) {
-  const params = new URL(request.url).searchParams;
-  const contentId = params.get("contentId")?.trim();
-  const contentTypeId = params.get("contentTypeId")?.trim() || "";
-
-  if (!contentId) {
-    return NextResponse.json({ ok: false, message: "contentId가 필요합니다." }, { status: 400 });
-  }
-
-  const commonUrl = buildUrl(TOUR_BASE_URL, "detailCommon2", {
-    contentId,
-    contentTypeId,
-    defaultYN: "Y",
-    firstImageYN: "Y",
-    areacodeYN: "Y",
-    catcodeYN: "Y",
-    addrinfoYN: "Y",
-    mapinfoYN: "Y",
-    overviewYN: "Y",
-  });
-  const withUrl = buildUrl(WITH_BASE_URL, "detailWithTour2", { contentId, contentTypeId });
-
-  if (!commonUrl || !withUrl) {
-    return NextResponse.json({
-      ok: true,
-      source: "sample",
-      detail: { title: "상세 정보", overview: "Supabase와 TourAPI 환경변수를 설정하면 실제 상세 정보가 표시됩니다." },
-    });
-  }
-
-  const [commonData, withData] = await Promise.allSettled([requestApi(commonUrl), requestApi(withUrl)]);
-  const common = commonData.status === "fulfilled" ? getItems(commonData.value)[0] || {} : {};
-  const withTour = withData.status === "fulfilled" ? getItems(withData.value)[0] || {} : {};
-
+  const contentId = new URL(request.url).searchParams.get("contentId")?.trim();
+  if (!contentId || !/^\d+$/.test(contentId))
+    return NextResponse.json(
+      { ok: false, message: "유효한 contentId가 필요합니다." },
+      { status: 400 },
+    );
+  const commonUrl = buildUrl(TOUR_BASE_URL, "detailCommon2", { contentId });
+  const withUrl = buildUrl(WITH_BASE_URL, "detailWithTour2", { contentId });
+  if (!commonUrl || !withUrl)
+    return NextResponse.json(
+      {
+        ok: false,
+        detail: null,
+        message: "관광정보 연결이 준비되지 않았습니다.",
+      },
+      { status: 503 },
+    );
+  const [commonResult, withResult] = await Promise.allSettled([
+    requestApi(commonUrl),
+    requestApi(withUrl),
+  ]);
+  if (commonResult.status === "rejected" && withResult.status === "rejected")
+    return NextResponse.json(
+      { ok: false, detail: null, message: "시설정보를 불러오지 못했습니다." },
+      { status: 502 },
+    );
+  const common =
+    commonResult.status === "fulfilled"
+      ? getItems(commonResult.value)[0] || {}
+      : {};
+  const facilities =
+    withResult.status === "fulfilled"
+      ? getItems(withResult.value)[0] || {}
+      : {};
+  const fields = [
+    "parking",
+    "route",
+    "restroom",
+    "wheelchair",
+    "elevator",
+    "exit",
+    "publictransport",
+    "guidehuman",
+    "helpdog",
+    "stroller",
+  ];
   return NextResponse.json({
     ok: true,
     source: "tourapi",
+    accessibilityAvailable: withResult.status === "fulfilled",
     detail: {
-      title: common.title || "상세 정보",
+      title: common.title || "",
       overview: stripHtml(common.overview || ""),
-      homepageText: stripHtml(common.homepage || ""),
       tel: common.tel || "",
-      parking: withTour.parking || "",
-      route: withTour.route || "",
-      restroom: withTour.restroom || "",
-      wheelchair: withTour.wheelchair || "",
-      elevator: withTour.elevator || "",
+      ...Object.fromEntries(
+        fields.map((field) => [field, stripHtml(facilities[field] || "")]),
+      ),
     },
   });
 }
