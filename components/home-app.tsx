@@ -72,7 +72,10 @@ function kakaoPlace(item: KakaoPlace): Place | null {
     source: "kakao",
   };
 }
-function tourPlace(item: TourItem): Place | null {
+function tourPlace(
+  item: TourItem,
+  source: "tourapi" | "withapi" = "tourapi",
+): Place | null {
   const lat = Number(item.mapY),
     lng = Number(item.mapX);
   if (
@@ -94,7 +97,7 @@ function tourPlace(item: TourItem): Place | null {
     lng,
     phone: item.tel,
     image: item.image,
-    source: "tourapi",
+    source,
   };
 }
 function directions(place: Place) {
@@ -141,9 +144,8 @@ export function HomeApp() {
   >([]);
   const [reportText, setReportText] = useState("");
   const [message, setMessage] = useState("");
-  const routeContainer = useRef<HTMLDivElement>(null);
   const parkingContainer = useRef<HTMLDivElement>(null);
-  const maps = useRef<MapInstance[]>([]);
+  const parkingMap = useRef<MapInstance | null>(null);
   const searchSequence = useRef(0);
   const parkingSequence = useRef(0);
   useEffect(() => {
@@ -162,74 +164,58 @@ export function HomeApp() {
     return () => data.subscription.unsubscribe();
   }, [supabase]);
   useEffect(() => {
-    if (
-      !ready ||
-      !window.kakao ||
-      !routeContainer.current ||
-      !parkingContainer.current
-    )
-      return;
+    if (!ready || !window.kakao || !parkingContainer.current) return;
     const api = window.kakao.maps;
-    maps.current = [parkingContainer.current, routeContainer.current].map(
-      (container) =>
-        new api.Map(container, {
-          center: new api.LatLng(INITIAL_VIEW.lat, INITIAL_VIEW.lng),
-          level: 4,
-        }),
-    );
-    const observer = new ResizeObserver(() =>
-      maps.current.forEach((map) => map.relayout()),
-    );
-    observer.observe(routeContainer.current);
+    const map = new api.Map(parkingContainer.current, {
+      center: new api.LatLng(INITIAL_VIEW.lat, INITIAL_VIEW.lng),
+      level: 4,
+    });
+    parkingMap.current = map;
+    const observer = new ResizeObserver(() => map.relayout());
     observer.observe(parkingContainer.current);
     return () => {
       observer.disconnect();
-      maps.current = [];
+      parkingMap.current = null;
     };
   }, [ready]);
   useEffect(() => {
-    if (!ready || !window.kakao) return;
+    if (!ready || !window.kakao || !parkingMap.current) return;
     const api = window.kakao.maps;
+    const map = parkingMap.current;
     const markers: Marker[] = [];
-    maps.current.forEach((map, index) => {
-      const items = index === 0 ? parkingLots : results;
-      items.forEach((place) => {
-        const marker = new api.Marker({
-          map,
-          position: new api.LatLng(place.lat, place.lng),
-          title: place.name,
-        });
-        api.event.addListener(marker, "click", () =>
-          index === 0 ? selectParking(place) : selectPlace(place),
-        );
-        markers.push(marker);
+    parkingLots.forEach((place) => {
+      const marker = new api.Marker({
+        map,
+        position: new api.LatLng(place.lat, place.lng),
+        title: place.name,
       });
-      const target = index === 0 ? parking : selected;
-      if (position)
-        markers.push(
-          new api.Marker({
-            map,
-            position: new api.LatLng(position.lat, position.lng),
-            title: "현재 위치",
-          }),
-        );
-      if (target) {
-        const point = new api.LatLng(target.lat, target.lng);
-        markers.push(
-          new api.Marker({
-            map,
-            position: point,
-            title: `선택: ${target.name}`,
-          }),
-        );
-        map.setCenter(point);
-      } else if (position)
-        map.setCenter(new api.LatLng(position.lat, position.lng));
-      else if (items[0])
-        map.setCenter(new api.LatLng(items[0].lat, items[0].lng));
+      api.event.addListener(marker, "click", () => selectParking(place));
+      markers.push(marker);
     });
+    if (position)
+      markers.push(
+        new api.Marker({
+          map,
+          position: new api.LatLng(position.lat, position.lng),
+          title: "현재 위치",
+        }),
+      );
+    if (parking) {
+      const point = new api.LatLng(parking.lat, parking.lng);
+      markers.push(
+        new api.Marker({
+          map,
+          position: point,
+          title: `선택: ${parking.name}`,
+        }),
+      );
+      map.setCenter(point);
+    } else if (position)
+      map.setCenter(new api.LatLng(position.lat, position.lng));
+    else if (parkingLots[0])
+      map.setCenter(new api.LatLng(parkingLots[0].lat, parkingLots[0].lng));
     return () => markers.forEach((marker) => marker.setMap(null));
-  }, [ready, position, parkingLots, results, parking, selected]);
+  }, [ready, position, parkingLots, parking]);
   useEffect(() => {
     if (!selected?.contentId) return;
     const controller = new AbortController();
@@ -337,36 +323,19 @@ export function HomeApp() {
     const sequence = ++searchSequence.current;
     setResults([]);
     selectPlace(null);
-    setSearchStatus("장소를 검색하는 중입니다.");
-    const requests: Promise<Place[]>[] = [
-      ...["search", "with-search"].map(async (endpoint) => {
+    setSearchStatus("한국관광공사 관광정보를 검색하는 중입니다.");
+    const requests: Promise<Place[]>[] = ["search", "with-search"].map(
+      async (endpoint) => {
         const response = await fetch(
           `/api/tour/${endpoint}?keyword=${encodeURIComponent(query)}`,
         );
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.message);
         return (data.items as TourItem[])
-          .map(tourPlace)
+          .map((item) => tourPlace(item, data.source))
           .filter((item): item is Place => Boolean(item));
-      }),
-    ];
-    if (ready && window.kakao) {
-      const api = window.kakao.maps;
-      requests.push(
-        new Promise((resolve, reject) =>
-          new api.services.Places().keywordSearch(query, (items, status) => {
-            if (status === api.services.Status.OK)
-              resolve(
-                items
-                  .map(kakaoPlace)
-                  .filter((item): item is Place => Boolean(item)),
-              );
-            else if (status === api.services.Status.ZERO_RESULT) resolve([]);
-            else reject(new Error("장소 검색 실패"));
-          }),
-        ),
-      );
-    }
+      },
+    );
     const responses = await Promise.allSettled(requests);
     if (sequence !== searchSequence.current) return;
     const unique = new Map<string, Place>();
@@ -395,26 +364,36 @@ export function HomeApp() {
     selectPlace(null);
     setResults([]);
     setSearchStatus("현재 위치 주변 관광정보를 불러오는 중입니다.");
-    try {
-      const response = await fetch(
-        `/api/tour/location?mapX=${position.lng}&mapY=${position.lat}&radius=2000`,
-      );
-      const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.message);
-      if (sequence !== searchSequence.current) return;
-      const next = (data.items as TourItem[])
-        .map(tourPlace)
-        .filter((place): place is Place => Boolean(place));
-      setResults(next);
-      setSearchStatus(
-        next.length
-          ? `현재 위치 반경 2km · ${next.length}건`
+    const requests: Promise<Place[]>[] = ["tour", "with"].map(
+      async (source) => {
+        const response = await fetch(
+          `/api/tour/location?mapX=${position.lng}&mapY=${position.lat}&radius=2000&source=${source}`,
+        );
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message);
+        return (data.items as TourItem[])
+          .map((item) => tourPlace(item, data.source))
+          .filter((item): item is Place => Boolean(item));
+      },
+    );
+    const responses = await Promise.allSettled(requests);
+    if (sequence !== searchSequence.current) return;
+    const unique = new Map<string, Place>();
+    responses.forEach((response) => {
+      if (response.status === "fulfilled")
+        response.value.forEach((place) =>
+          unique.set(`${place.source}-${place.id}`, place),
+        );
+    });
+    setResults([...unique.values()]);
+    const failed = responses.some((response) => response.status === "rejected");
+    setSearchStatus(
+      unique.size
+        ? `현재 위치 반경 2km · ${unique.size}건${failed ? " · 일부 관광정보를 불러오지 못했습니다." : ""}`
+        : failed
+          ? "주변 관광정보를 불러오지 못했습니다."
           : "주변 관광정보가 없습니다.",
-      );
-    } catch {
-      if (sequence === searchSequence.current)
-        setSearchStatus("주변 관광정보를 불러오지 못했습니다.");
-    }
+    );
   }
   function addStop() {
     if (
@@ -467,7 +446,9 @@ export function HomeApp() {
         <p className="muted">
           {place.source === "kakao"
             ? "카카오 장소정보"
-            : "한국관광공사 관광정보"}
+            : place.source === "withapi"
+              ? "한국관광공사 무장애 정보"
+              : "한국관광공사 관광정보"}
         </p>
         <div className="place-actions">
           <a
@@ -522,8 +503,8 @@ export function HomeApp() {
         </Link>
         <div className="nav-links">
           <a href="#home">홈</a>
-          <a href="#parking">주차장</a>
           <a href="#route">경로 안내</a>
+          <a href="#parking">주차장</a>
           <a href="#facility">현장 시설</a>
           <Link href="/mypage">마이페이지</Link>
         </div>
@@ -589,6 +570,86 @@ export function HomeApp() {
           </button>
         </div>
       </header>
+      <section id="route" className="tour-explore">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">한국관광공사 Open API</p>
+            <h2>
+              {keyword.trim() || "수원"} 유명 관광지로의 무장애 경로 검색
+            </h2>
+          </div>
+        </div>
+        <form className="api-search" onSubmit={search}>
+          <input
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            aria-label="관광지 검색"
+            placeholder="관광지를 검색하세요 (예: 수원)"
+          />
+          <button type="submit">검색</button>
+        </form>
+        <div className="tour-toolbar">
+          <button className="small-btn" onClick={requestLocation}>
+            현재 위치
+          </button>
+          <button className="small-btn" onClick={loadNearby}>
+            주변 관광지
+          </button>
+        </div>
+        <p role="status">{searchStatus}</p>
+        <div className="tour-grid">
+          {results.map((place) => (
+            <button
+              className="tour-card"
+              key={`${place.source}-${place.id}`}
+              aria-pressed={
+                selected?.id === place.id && selected?.source === place.source
+              }
+              onClick={() => selectPlace(place)}
+            >
+              <div className="tour-card-media">
+                {place.image ? (
+                  <Image
+                    unoptimized
+                    fill
+                    sizes="(max-width: 640px) 100vw, 360px"
+                    src={place.image}
+                    alt={place.name}
+                  />
+                ) : (
+                  <span className="tour-card-placeholder">이미지 없음</span>
+                )}
+                <span
+                  className={`tour-tag${place.source === "withapi" ? " is-with" : ""}`}
+                >
+                  {place.source === "withapi" ? "무장애 API" : "TourAPI"}
+                </span>
+              </div>
+              <div className="tour-card-body">
+                <strong>{place.name}</strong>
+                {place.address && <p>{place.address}</p>}
+                <div className="tour-card-badges">
+                  <span className="badge">관광지</span>
+                  <span className="badge soft">무장애 정보 매칭</span>
+                </div>
+              </div>
+            </button>
+          ))}
+          {!results.length && !searchStatus && (
+            <p className="muted">
+              관광지를 검색하거나 주변 관광지를 불러와 보세요.
+            </p>
+          )}
+        </div>
+        {selected && (
+          <div className="tour-selected">
+            {placePanel(selected)}
+            <button className="card-link" onClick={() => selectPlace(null)}>
+              선택 닫기
+            </button>
+          </div>
+        )}
+      </section>
       <section id="parking">
         <div className="section-header">
           <div>
@@ -642,72 +703,6 @@ export function HomeApp() {
             </div>
           </div>
         </div>
-      </section>
-      <section
-        id="route"
-        className={
-          selected || results.length || searchStatus
-            ? "split-app"
-            : "split-app map-only"
-        }
-      >
-        <div className="live-map kakao-route-panel">
-          <div
-            ref={routeContainer}
-            className="kakao-map"
-            aria-label="장소 검색 지도"
-          />
-          {!ready && <div className="map-fallback">{mapStatus}</div>}
-          <div className="map-search">
-            <form className="api-search" onSubmit={search}>
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                aria-label="지도 장소 검색"
-                placeholder="장소를 검색하세요"
-              />
-              <button type="submit">검색</button>
-            </form>
-            <button className="small-btn" onClick={requestLocation}>
-              현재 위치
-            </button>
-            <button className="small-btn" onClick={loadNearby}>
-              주변 관광지
-            </button>
-          </div>
-        </div>
-        {(selected || results.length > 0 || searchStatus) && (
-          <aside className="side-panel">
-            <p role="status">{searchStatus}</p>
-            <div className="search-results">
-              {results.map((place) => (
-                <button
-                  className="place-result"
-                  key={`${place.source}-${place.id}`}
-                  aria-pressed={
-                    selected?.id === place.id &&
-                    selected?.source === place.source
-                  }
-                  onClick={() => selectPlace(place)}
-                >
-                  <strong>{place.name}</strong>
-                  <span>{place.address}</span>
-                  <span>
-                    {place.source === "tourapi" ? "한국관광공사" : "카카오"}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {selected && (
-              <>
-                {placePanel(selected)}
-                <button className="card-link" onClick={() => selectPlace(null)}>
-                  선택 닫기
-                </button>
-              </>
-            )}
-          </aside>
-        )}
       </section>
       <section className="route-section" id="walk-route">
         <h2>보행 경로</h2>
@@ -874,8 +869,8 @@ export function HomeApp() {
       )}
       <div className="bottom-nav">
         <a href="#home">홈</a>
-        <a href="#parking">주차장</a>
         <a href="#route">경로 안내</a>
+        <a href="#parking">주차장</a>
         <a href="#facility">시설 안내</a>
         <a href="#report">제보하기</a>
         <Link href="/mypage">마이페이지</Link>
