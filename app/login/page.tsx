@@ -5,12 +5,6 @@ import { FormEvent, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/env";
 
-const ID_DOMAIN = "suwonpass.local";
-
-function idToEmail(id: string) {
-  return `${id}@${ID_DOMAIN}`;
-}
-
 export default function LoginPage() {
   const supabase = useMemo(() => createClient(), []);
   const env = getSupabaseBrowserEnv();
@@ -27,7 +21,15 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const email = idToEmail(userId.trim());
+
+    const res = await fetch(`/api/auth/lookup?username=${encodeURIComponent(userId.trim())}`);
+    if (!res.ok) {
+      setLoading(false);
+      setMessage("아이디 또는 비밀번호가 올바르지 않습니다.");
+      return;
+    }
+    const { email } = await res.json() as { email: string };
+
     const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
@@ -48,7 +50,6 @@ export default function LoginPage() {
     setLoading(false);
 
     const destination = profile?.role === "admin" ? "/admin" : "/";
-
     window.location.assign(destination);
   }
 
