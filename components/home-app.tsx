@@ -302,11 +302,6 @@ export function HomeApp() {
         </div>
         <div className="brand-preview" aria-label="수원 든든패스 브랜드 이미지">
           <img src={HERO_LOGO_ASSET} alt="수원 든든패스 로고" />
-          <div className="brand-preview-copy">
-            <span>수원 든든패스</span>
-            <strong>무장애 관광 동선을 한눈에</strong>
-            <p>경로 추천 지도는 아래 경로 안내 섹션에서 카카오맵으로 확인할 수 있습니다.</p>
-          </div>
         </div>
       </header>
 
