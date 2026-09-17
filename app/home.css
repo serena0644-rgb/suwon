@@ -1,23 +1,18 @@
 .brand-preview {
   position: relative;
   display: grid;
-  align-content: end;
+  align-content: center;
+  justify-items: center;
+  gap: 24px;
   min-height: 430px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.96), rgba(255, 253, 248, 0.8) 42%, rgba(26, 97, 209, 0.08) 100%), #fffdf8;
-  box-shadow: 0 24px 70px rgba(27, 37, 40, 0.12);
-  overflow: hidden;
 }
 
 .brand-preview img {
-  position: absolute;
-  top: 42px;
-  left: 50%;
-  width: min(72%, 295px);
-  max-height: 255px;
+  display: block;
+  width: min(92%, 420px);
+  height: auto;
+  max-height: 340px;
   object-fit: contain;
-  transform: translateX(-50%);
 }
 
 .brand-preview-copy {
@@ -25,10 +20,7 @@
   display: grid;
   gap: 8px;
   margin: 0 24px 24px;
-  border: 1px solid rgba(221, 213, 199, 0.9);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 18px;
+  text-align: center;
 }
 
 .brand-preview-copy span {
