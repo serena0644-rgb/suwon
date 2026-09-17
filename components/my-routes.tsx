@@ -1,22 +1,15 @@
 "use client";
 import { useSaved } from "@/lib/use-saved";
-import { KAKAO_MAP_KEY } from "@/lib/kakao";
+import { RoutePlanner } from "@/components/route-planner";
+import { toMapPlace } from "@/lib/routes/storage";
 import Link from "next/link";
-import Script from "next/script";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import {
   readSaved,
   writeSaved,
   type SavedCourse,
   type Place,
 } from "@/lib/selection";
-const MAP_KEY = KAKAO_MAP_KEY;
 function Shell({ children }: { children: ReactNode }) {
   return (
     <>
@@ -179,6 +172,7 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
       setNotice("코스를 수정했습니다.");
     } else setNotice("코스를 저장하지 못했습니다.");
   }
+
   return (
     <Shell>
       <main className="route-detail-shell">
@@ -292,55 +286,11 @@ export function RouteDetailPage({ routeId }: { routeId: string }) {
   );
 }
 function CourseMap({ course }: { course: SavedCourse }) {
-  const container = useRef<HTMLDivElement>(null);
-  const [ready, setReady] = useState(false);
-  const [status, setStatus] = useState(
-    MAP_KEY ? "지도를 불러오는 중입니다." : "지도를 사용할 수 없습니다.",
-  );
-  useEffect(() => {
-    if (!ready || !window.kakao || !container.current) return;
-    const api = window.kakao.maps,
-      first = course.places[0];
-    const map = new api.Map(container.current, {
-      center: new api.LatLng(first.lat, first.lng),
-      level: 5,
-    });
-    const markers = course.places.map(
-      (place) =>
-        new api.Marker({
-          map,
-          position: new api.LatLng(place.lat, place.lng),
-          title: place.name,
-        }),
-    );
-    const observer = new ResizeObserver(() => map.relayout());
-    observer.observe(container.current);
-    return () => {
-      markers.forEach((marker) => marker.setMap(null));
-      observer.disconnect();
-    };
-  }, [course, ready]);
   return (
-    <div className="route-kakao-shell">
-      {MAP_KEY && (
-        <Script
-          id="kakao-map-sdk"
-          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${MAP_KEY}&autoload=false&libraries=services`}
-          onReady={() =>
-            window.kakao?.maps.load(() => {
-              setReady(true);
-              setStatus("");
-            })
-          }
-          onError={() => setStatus("지도를 불러오지 못했습니다.")}
-        />
-      )}
-      <div
-        ref={container}
-        className="route-kakao-map"
-        aria-label="저장한 장소 지도"
-      />
-      {!ready && <div className="map-fallback">{status}</div>}
-    </div>
+    <RoutePlanner
+      key={course.id}
+      candidates={[]}
+      initialStops={course.places.map(toMapPlace)}
+    />
   );
 }

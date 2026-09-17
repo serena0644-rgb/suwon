@@ -1,5 +1,14 @@
 "use client";
 import Link from "next/link";
+import { RoutePlanner } from "@/components/route-planner";
+import type { PickRequest } from "@/components/route-planner";
+import { toMapPlace } from "@/lib/routes/storage";
+import type {
+  KakaoMap,
+  KakaoMarker,
+  KakaoPlace,
+  SearchOptions,
+} from "@/lib/kakao/types";
 import Image from "next/image";
 import { KAKAO_MAP_KEY } from "@/lib/kakao";
 import Script from "next/script";
@@ -18,80 +27,9 @@ type Position = {
   lat: number;
   lng: number;
 };
-type MapInstance = {
-  setCenter: (position: unknown) => void;
-  relayout: () => void;
-};
-type Marker = {
-  setMap: (map: MapInstance | null) => void;
-};
-type KakaoPlace = {
-  id: string;
-  place_name: string;
-  address_name: string;
-  road_address_name: string;
-  x: string;
-  y: string;
-  phone: string;
-  place_url: string;
-  distance: string;
-};
-type SearchOptions = {
-  location?: unknown;
-  radius?: number;
-  sort?: string;
-  category_group_code?: string;
-};
-declare global {
-  interface Window {
-    kakao?: {
-      maps: {
-        LatLng: new (lat: number, lng: number) => unknown;
-        Map: new (
-          container: HTMLElement,
-          options: {
-            center: unknown;
-            level: number;
-          },
-        ) => MapInstance;
-        Marker: new (options: {
-          map: MapInstance;
-          position: unknown;
-          title?: string;
-        }) => Marker;
-        event: {
-          addListener: (
-            target: unknown,
-            type: string,
-            handler: () => void,
-          ) => void;
-        };
-        load: (callback: () => void) => void;
-        services: {
-          Places: new () => {
-            keywordSearch: (
-              keyword: string,
-              callback: (items: KakaoPlace[], status: string) => void,
-              options?: SearchOptions,
-            ) => void;
-            categorySearch: (
-              category: string,
-              callback: (items: KakaoPlace[], status: string) => void,
-              options: SearchOptions,
-            ) => void;
-          };
-          Status: {
-            OK: string;
-            ZERO_RESULT: string;
-          };
-          SortBy: {
-            DISTANCE: string;
-          };
-        };
-      };
-    };
-  }
-}
+type MapInstance = KakaoMap;
+type Marker = KakaoMarker;
+
 const MAP_KEY = KAKAO_MAP_KEY;
 const LOGO =
   "https://www.figma.com/api/mcp/asset/e11201e1-6df0-4ede-8b0f-6ec2ee5c9c44.png";
@@ -164,6 +102,7 @@ function directions(place: Place) {
 }
 export function HomeApp() {
   const supabase = useMemo(() => createClient(), []);
+
   const [user, setUser] = useState<User | null>(null);
   const [keyword, setKeyword] = useState("");
   const [parkingKeyword, setParkingKeyword] = useState("");
@@ -179,6 +118,7 @@ export function HomeApp() {
   const [courseSelection, setCourse] = useState<SavedCourse | null>(null);
   const course = courseSelection || saved.courses[0] || null;
   const [stops, setStops] = useState<Place[]>([]);
+  const [pickRequest, setPickRequest] = useState<PickRequest | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
   const [locationStatus, setLocationStatus] = useState(
     "현재 위치를 아직 확인하지 않았습니다.",
@@ -482,8 +422,10 @@ export function HomeApp() {
       !stops.some(
         (place) => place.id === selected.id && place.source === selected.source,
       )
-    )
+    ) {
       setStops([...stops, selected]);
+      setPickRequest({ place: toMapPlace(selected), token: Date.now() });
+    }
   }
   function createCustomCourse() {
     if (!stops.length) {
@@ -767,6 +709,23 @@ export function HomeApp() {
           </aside>
         )}
       </section>
+      <section className="route-section" id="walk-route">
+        <h2>보행 경로</h2>
+        <RoutePlanner
+          candidates={Array.from(
+            new Map(
+              [
+                ...results.map(toMapPlace),
+                ...parkingLots.map((place) => ({
+                  ...toMapPlace(place),
+                  kind: "parking" as const,
+                })),
+              ].map((place) => [place.id, place]),
+            ).values(),
+          )}
+          pickRequest={pickRequest}
+        />
+      </section>
       <section id="api">
         <div className="section-header">
           <h2>선택한 장소</h2>
@@ -870,7 +829,11 @@ export function HomeApp() {
           <article className="card mypage-card">
             <span className="badge soft">계정 상태</span>
             <h3>{user ? "로그인됨" : "비회원 모드"}</h3>
-            <p className="muted">{user ? String(user.user_metadata?.username ?? user.email ?? "") : "로그인하면 제보와 코스 저장 기능을 더 안정적으로 이용할 수 있습니다."}</p>
+            <p className="muted">
+              {user
+                ? String(user.user_metadata?.username ?? user.email ?? "")
+                : "로그인하면 제보와 코스 저장 기능을 더 안정적으로 이용할 수 있습니다."}
+            </p>
           </article>
         </div>
       </section>

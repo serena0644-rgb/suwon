@@ -8,7 +8,7 @@ export type Place = {
   url?: string;
   image?: string;
   contentId?: string;
-  source: "kakao" | "tourapi";
+  source: "kakao" | "tourapi" | "map";
 };
 export type SavedCourse = {
   id: string;
@@ -33,7 +33,7 @@ function validPlace(value: unknown): value is Place {
     typeof place.name === "string" &&
     !!place.name &&
     typeof place.address === "string" &&
-    ["kakao", "tourapi"].includes(place.source) &&
+    ["kakao", "tourapi", "map"].includes(place.source) &&
     Number.isFinite(place.lat) &&
     Number.isFinite(place.lng) &&
     Math.abs(place.lat) <= 90 &&

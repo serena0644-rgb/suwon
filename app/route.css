@@ -1,0 +1,635 @@
+/* 지도 기반 경로 만들기 · 실시간 안내 화면 스타일 */
+
+.route-section {
+  display: grid;
+  gap: 20px;
+}
+
+.route-planner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.route-planner-map {
+  position: relative;
+  min-height: 560px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--mint);
+}
+
+.route-map-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+}
+
+.route-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.route-map-badge {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 5;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.map-fallback-error {
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  justify-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.map-fallback-error p {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+}
+
+/* --- 지도 위 오버레이 --- */
+
+.map-pin,
+.map-stop,
+.map-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  border: 0;
+  background: transparent;
+  color: white;
+  font-family: inherit;
+}
+
+.map-pin {
+  padding: 0;
+  cursor: pointer;
+}
+
+.map-pin span,
+.map-stop span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 999px;
+  box-shadow: 0 6px 16px rgba(27, 37, 40, 0.28);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.map-pin small,
+.map-stop small {
+  margin-top: 4px;
+  padding: 2px 8px;
+  max-width: 130px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-pin-parking span {
+  background: var(--green);
+}
+
+.map-pin-tour span {
+  background: #2d668f;
+}
+
+.map-pin-custom span {
+  background: var(--muted);
+}
+
+.map-stop span {
+  width: 36px;
+  height: 36px;
+  background: var(--blue);
+  font-size: 15px;
+}
+
+.map-stop-start span {
+  background: var(--green);
+}
+
+.map-stop-goal span {
+  background: var(--red);
+}
+
+.map-step span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--orange);
+  box-shadow: 0 6px 16px rgba(27, 37, 40, 0.3);
+  font-size: 16px;
+}
+
+.map-step small {
+  margin-top: 4px;
+  padding: 3px 10px;
+  max-width: 200px;
+  border-radius: 8px;
+  background: rgba(27, 37, 40, 0.88);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-step-stairs span,
+.map-step-overpass span,
+.map-step-underpass span {
+  background: var(--red);
+}
+
+.map-user-dot {
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: var(--blue);
+  box-shadow: 0 0 0 2px rgba(26, 97, 209, 0.35);
+}
+
+/* --- 선택 패널 --- */
+
+.route-planner-side {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  max-height: 720px;
+  overflow-y: auto;
+}
+
+.planner-head h3 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.planner-head p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.planner-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.planner-field select {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  font-weight: 700;
+}
+
+.planner-toggles {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.planner-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planner-stops {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.planner-stops li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfaf6;
+}
+
+.planner-stops li.planner-empty {
+  display: block;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.planner-order {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--blue);
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.planner-stop-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.planner-stop-body strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner-stop-body small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.planner-stop-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.planner-stop-actions button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.planner-stop-actions button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.planner-stop-actions .is-danger {
+  border-color: #f3c0c0;
+  color: var(--red);
+}
+
+.planner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planner-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.planner-summary div {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--mint);
+  text-align: center;
+}
+
+.planner-summary span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.planner-summary strong {
+  font-size: 17px;
+}
+
+.planner-warnings {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 12px 12px 30px;
+  border-left: 4px solid var(--orange);
+  border-radius: 8px;
+  background: #fff5ea;
+  color: #8a4b06;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.planner-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f4f8;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.planner-notice.is-warn {
+  background: #fff5ea;
+  color: #8a4b06;
+}
+
+.planner-notice.is-danger {
+  background: #fdeced;
+  color: #98231f;
+}
+
+.planner-cta {
+  display: grid;
+  gap: 8px;
+}
+
+.planner-cta button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.route-parking-strip {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.route-parking-strip h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.route-parking-strip .side-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+/* --- 실시간 안내 --- */
+
+.guidance-panel {
+  display: grid;
+  gap: 12px;
+  /* globals.css 의 `section` 전역 여백(최대 100px)이 패널 안쪽까지 먹지 않도록 되돌립니다. */
+  padding: 0;
+}
+
+.guidance-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guidance-head h3 {
+  margin: 6px 0 0;
+  font-size: 19px;
+}
+
+.guidance-alert {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #fdeced;
+  color: #98231f;
+  font-size: 13px;
+}
+
+.guidance-alert p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.guidance-alert button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.guidance-status {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f4f8;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guidance-status.is-warn {
+  background: #fff5ea;
+  color: #8a4b06;
+}
+
+.guidance-next {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--blue);
+  color: white;
+}
+
+.guidance-next.guidance-next-stairs,
+.guidance-next.guidance-next-overpass,
+.guidance-next.guidance-next-underpass {
+  background: var(--red);
+}
+
+.guidance-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 24px;
+}
+
+.guidance-next strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.guidance-next p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+.guidance-next .guidance-warning {
+  opacity: 1;
+  font-size: 12px;
+}
+
+.guidance-upcoming {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guidance-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.guidance-stats div {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--mint);
+  text-align: center;
+}
+
+.guidance-stats dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.guidance-stats dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.guidance-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: #e3e8ef;
+  overflow: hidden;
+}
+
+.guidance-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+  transition: width 0.4s ease;
+}
+
+.guidance-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.guidance-steps li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.guidance-steps li.is-passed {
+  opacity: 0.45;
+}
+
+.guidance-steps li.is-current {
+  background: #e7efff;
+  font-weight: 800;
+}
+
+.guidance-steps p {
+  margin: 0;
+}
+
+.guidance-warning {
+  display: block;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.guidance-next .guidance-warning {
+  color: #ffe2e2;
+}
+
+/* --- 경로 상세 화면 --- */
+
+.detail-walk-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-walk-map {
+  position: relative;
+  min-height: 420px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--mint);
+}
+
+.detail-walk-meta {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 1080px) {
+  .route-planner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .route-planner-side {
+    max-height: none;
+  }
+
+  .route-planner-map {
+    min-height: 420px;
+  }
+}
