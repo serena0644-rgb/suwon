@@ -4,6 +4,7 @@ create schema if not exists private;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  username text unique,
   email text,
   display_name text,
   user_type text default '휠체어',
@@ -29,9 +30,10 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, display_name, user_type)
+    insert into public.profiles (id, username, email, display_name, user_type)
   values (
     new.id,
+    coalesce(new.raw_user_meta_data ->> 'username', ''),
     new.email,
     coalesce(new.raw_user_meta_data ->> 'display_name', ''),
     coalesce(new.raw_user_meta_data ->> 'user_type', '휠체어')
