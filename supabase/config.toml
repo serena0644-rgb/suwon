@@ -1,0 +1,3 @@
+[functions.username-login]
+# Password validation in the handler authenticates callers before issuing a session.
+verify_jwt = false
