@@ -407,7 +407,7 @@ export function HomeApp() {
           <article className="card mypage-card">
             <span className="badge soft">계정 상태</span>
             <h3>{user ? "로그인됨" : "비회원 모드"}</h3>
-            <p className="muted"><p className="muted">{user ? String(user.user_metadata?.username ?? user.email ?? "") : "로그인하면 제보와 코스 저장 기능을 더 안정적으로 이용할 수 있습니다."}</p>
+            <p className="muted">{user ? String(user.user_metadata?.username ?? user.email ?? "") : "로그인하면 제보와 코스 저장 기능을 더 안정적으로 이용할 수 있습니다."}</p>
           </article>
         </div>
       </section>
