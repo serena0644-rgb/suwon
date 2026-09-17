@@ -1,3 +1,33 @@
+# 수원 든든패스
+
+수원화성 일대 교통약자(휠체어·유모차·고령자) 관광 웹서비스입니다.
+
+## 지도 · 경로 관련 환경변수
+
+`.env.example` 을 `.env.local` 로 복사한 뒤 아래 두 키를 채워야 지도와 보행 경로가 동작합니다.
+
+| 환경변수 | 발급처 | 용도 | 노출 범위 |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` | [카카오 개발자 콘솔](https://developers.kakao.com) → 내 애플리케이션 → 앱 키 → **JavaScript 키** | 카카오맵 표시 | 브라우저 (필수 노출) |
+| `TMAP_APP_KEY` | [SK open API](https://openapi.sk.com) → 내 프로젝트 → 앱 키 | 보행자 경로탐색 | 서버 전용 |
+
+- 카카오 키는 SDK 특성상 브라우저에 노출되므로, 콘솔의 **플랫폼 → Web** 에 배포 도메인(및 `http://localhost:3000`)을 등록해 사용 범위를 제한하세요.
+- TMAP 키는 서버 라우트 `app/api/route/walk/route.ts` 에서만 쓰이며 클라이언트 번들에 포함되지 않습니다.
+- 지도는 기존 공개 앱키를 기본으로 사용하며 환경변수로 재정의할 수 있습니다. TMAP 키가 없거나 API가 실패하면 실제 경로를 표시하지 않습니다. 장소별 카카오 길안내 링크는 계속 사용할 수 있습니다.
+
+## 보행자 경로탐색 API를 TMAP으로 고른 이유
+
+카카오 지도 JS SDK 에는 길찾기가 없고, 카카오모빌리티 Directions 와 네이버 Directions 는 **자동차 전용**이라 보도·횡단보도를 따르는 경로를 만들 수 없습니다.
+TMAP 보행자 경로안내(`POST https://apis.openapi.sk.com/tmap/routes/pedestrian`)는
+
+- 국내 보도/횡단보도/지하보도/육교 데이터를 갖고 있고,
+- `searchOption=30` 으로 **계단을 제외한** 경로를 요청할 수 있으며,
+- 응답에 한국어 턴바이턴 안내 문구(`description`)와 `turnType` 이 들어 있어 실시간 안내에 바로 쓸 수 있습니다.
+
+무장애 서비스라는 요구사항에 계단 회피 옵션이 결정적이어서 TMAP 을 선택했습니다. 기본 보행 옵션은 `계단 제외`이며, 화면에서 추천/대로우선/최단으로 바꿀 수 있습니다.
+
+---
+
 # vinext-starter
 
 A clean full-stack starter running on
