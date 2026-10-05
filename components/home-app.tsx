@@ -537,8 +537,8 @@ export function HomeApp() {
           <Image
             unoptimized
             priority
-            width={590}
-            height={834}
+            width={1688}
+            height={2388}
             src={LOGO}
             alt="수원 든든패스 로고"
           />
