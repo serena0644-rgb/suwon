@@ -31,8 +31,7 @@ type MapInstance = KakaoMap;
 type Marker = KakaoMarker;
 
 const MAP_KEY = KAKAO_MAP_KEY;
-const LOGO =
-  "https://www.figma.com/api/mcp/asset/e11201e1-6df0-4ede-8b0f-6ec2ee5c9c44.png";
+const LOGO = "/suwon-logo.png";
 // Initial viewport only, never used as the user's position or a selected destination.
 const INITIAL_VIEW = { lat: 37.281889, lng: 127.014028 };
 const facilityFields = [
@@ -538,8 +537,8 @@ export function HomeApp() {
           <Image
             unoptimized
             priority
-            width={891}
-            height={1260}
+            width={1688}
+            height={2388}
             src={LOGO}
             alt="수원 든든패스 로고"
           />
